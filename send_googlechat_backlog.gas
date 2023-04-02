@@ -1,0 +1,101 @@
+function task() {
+  const scriptProperties = PropertiesService.getScriptProperties();
+  let backlogId       = scriptProperties.getProperty('BACKLOG_PROJECT_ID');
+  let outputText      = "";
+  let backlogApiUri   = "https://" + scriptProperties.getProperty("BACKLOG_SPACE_FQDN") + "/api/v2/issues";
+  let backlogApiParam = "?apiKey=" + scriptProperties.getProperty("BACKLOG_API_KEY") + "&projectId[]=" + backlogId + "&statusId[]=1&statusId[]=2&statusId[]=3&order=&count=100"; // 未対応、処理中、処理済みの課題100件を取得
+
+  if(isHoliday()) {
+    // BacklogAPIを叩く
+    let backlogApiRes   = UrlFetchApp.fetch(backlogApiUri + backlogApiParam);
+    if (backlogApiRes.getResponseCode() != 200) {
+      return false;
+    }
+    let issuelist = JSON.parse(backlogApiRes.getContentText());
+
+    let todayDueCount = 0;
+    let overDueCount = 0;
+    let todayOutstandingCount = 0;
+    let overOutstandingCount  = 0;
+    let yyyy = new Date().getFullYear();
+    let mm   = ("0" + (new Date().getMonth() + 1)).slice(-2);
+    let dd   = ("0" + new Date().getDate()).slice(-2);
+
+    let todayTime = new Date(yyyy + "-" + mm + "-" + dd).getTime();
+
+    let backlogLinkUrl = "https://【Backlogのドメイン】/find/【Backlogのプロジェクトキー】?projectId=【プロジェクトID】&statusId=1&statusId=2&statusId=3&limitDateRange.end=" + yyyy + "/" + mm + "/" + dd + "&sort=LIMIT_DATE&order=true&simpleSearch=false&allOver=false&offset=0"
+
+    for(let i = 1; i<issuelist.length; i++) {
+      let convDueDate = String(issuelist[i].dueDate).replace(/^(.{10}).*/, "$1");
+      let timeDueDate = new Date(convDueDate).getTime();
+
+      // 本日期限
+      if(todayTime === timeDueDate) {
+        todayDueCount++;
+        if(issuelist[i].status.name === '未対応') {
+          todayOutstandingCount++;
+        }
+      }
+
+      // 期限切れ
+      if(todayTime > timeDueDate) {
+        overDueCount++;
+        if(issuelist[i].status.name === '未対応') {
+          overOutstandingCount++;
+        }
+      }
+    }
+    outputText += "<users/all>\n";
+    outputText += "【" + yyyy + "年" + mm + "月" + dd + "日のBacklog】\n";
+    outputText += backlogLinkUrl + "\n\n";
+    outputText += "本日期限： " + todayDueCount + "件（内 未対応：" + todayOutstandingCount + "件）\n";
+    outputText += "期限切れ： " + overDueCount + "件（内 未対応：" + overOutstandingCount + "件）";
+
+    sendGoogleChat(outputText);
+
+  }
+}
+
+/**
+ * GoogleChatへメッセージ送信
+ */
+function sendGoogleChat(aSendText) {
+
+  let webhookUrl = "【GoogleChatで取得したAPIのURL】";  
+  let data = {
+    // 投稿したいメッセージ
+    'text': aSendText
+  };
+  let options = {
+    'method': 'post',
+    'headers' : {
+      'Content-Type': 'application/json; charset=UTF-8'
+    },
+    'payload': JSON.stringify(data)
+  };
+  // Webhook URL に POST
+  var response = UrlFetchApp.fetch(webhookUrl, options);
+}
+
+/**
+ * 土日祝日判定
+ */
+function isHoliday() {
+  let today = new Date();
+
+  // 土日判定
+  let weekAry = ["REST","mon","tue","wed","thu","fri","REST"];
+    if (weekAry[today.getDay()] === "REST") {
+    return false;
+  }; 
+
+  // 祝日判定
+  var calJpHolidayUrl = "ja.japanese#holiday@group.v.calendar.google.com";
+  var calJpHoliday = CalendarApp.getCalendarById (calJpHolidayUrl);
+  if (calJpHoliday.getEventsForDay (today).length != 0) {
+    return false;
+  } ;
+
+  return true;
+
+}
