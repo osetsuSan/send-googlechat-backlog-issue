@@ -90,8 +90,8 @@ function isHoliday() {
   }; 
 
   // 祝日判定
-  var calJpHolidayUrl = "ja.japanese#holiday@group.v.calendar.google.com";
-  var calJpHoliday = CalendarApp.getCalendarById (calJpHolidayUrl);
+  let calJpHolidayUrl = "ja.japanese#holiday@group.v.calendar.google.com";
+  let calJpHoliday = CalendarApp.getCalendarById (calJpHolidayUrl);
   if (calJpHoliday.getEventsForDay (today).length != 0) {
     return false;
   } ;
